@@ -594,6 +594,7 @@
     <None Remove="Resources\text\script\const_pt_en.txt" />
     <None Remove="Resources\text\script\const_rs_en.txt" />
     <None Remove="Resources\text\script\const_sm_en.txt" />
+    <None Remove="Resources\text\script\const_usum_en.txt" />
     <None Remove="Resources\text\script\flags_b2w2_en.txt" />
     <None Remove="Resources\text\script\flags_bw_en.txt" />
     <None Remove="Resources\text\script\flags_dp_en.txt" />
@@ -604,6 +605,7 @@
     <None Remove="Resources\text\script\flags_pt_en.txt" />
     <None Remove="Resources\text\script\flags_rs_en.txt" />
     <None Remove="Resources\text\script\flags_sm_en.txt" />
+    <None Remove="Resources\text\script\flags_usum_en.txt" />
     <None Remove="Resources\text\script\flags_xy_en.txt" />
     <None Remove="Resources\text\zh\lang_zh.txt" />
     <None Remove="Resources\text\zh\LegalityCheckStrings_zh.txt" />
@@ -1234,6 +1236,7 @@
     <EmbeddedResource Include="Resources\text\script\const_pt_en.txt" />
     <EmbeddedResource Include="Resources\text\script\const_rs_en.txt" />
     <EmbeddedResource Include="Resources\text\script\const_sm_en.txt" />
+    <EmbeddedResource Include="Resources\text\script\const_usum_en.txt" />
     <EmbeddedResource Include="Resources\text\script\flags_b2w2_en.txt" />
     <EmbeddedResource Include="Resources\text\script\flags_bw_en.txt" />
     <EmbeddedResource Include="Resources\text\script\flags_dp_en.txt" />
@@ -1244,6 +1247,7 @@
     <EmbeddedResource Include="Resources\text\script\flags_pt_en.txt" />
     <EmbeddedResource Include="Resources\text\script\flags_rs_en.txt" />
     <EmbeddedResource Include="Resources\text\script\flags_sm_en.txt" />
+    <EmbeddedResource Include="Resources\text\script\flags_usum_en.txt" />
     <EmbeddedResource Include="Resources\text\script\flags_xy_en.txt" />
     <EmbeddedResource Include="Resources\text\zh\lang_zh.txt" />
     <EmbeddedResource Include="Resources\text\zh\LegalityCheckStrings_zh.txt" />

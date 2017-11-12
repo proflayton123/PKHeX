@@ -1170,7 +1170,7 @@ namespace PKHeX.Core
                 return;
             }
 
-            if (pkm.Ball == 0x14 && pkm.Gen7) // Heavy Ball
+            if (pkm.Ball == 0x14 && !Info.EncounterMatch.EggEncounter && pkm.SM) // Heavy Ball
             {
                 var lineage = Legal.GetLineage(pkm);
                 if (lineage.Any(e => Legal.AlolanCaptureNoHeavyBall.Contains(e)))
@@ -2007,6 +2007,7 @@ namespace PKHeX.Core
                 case 800 when pkm.AltForm == 3: // Ultra Necrozma
                     AddLine(Severity.Invalid, V310, CheckIdentifier.Form);
                     return;
+                case 800 when pkm.AltForm < 3: // Necrozma Fused forms & default
                 case 778 when pkm.AltForm == 2: // Totem disguise Mimikyu
                     AddLine(Severity.Valid, V315, CheckIdentifier.Form);
                     return;

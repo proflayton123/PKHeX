@@ -61,7 +61,7 @@ namespace PKHeX.Core
         public override int Generation => 7;
         protected override int GiftCountMax => 48;
         protected override int GiftFlagMax => 0x100 * 8;
-        protected override int EventFlagMax => 3968;
+        protected override int EventFlagMax => USUM ? 4928 : 3968;
         protected override int EventConstMax => (EventFlag - EventConst) / 2;
         public override int OTLength => 12;
         public override int NickLength => 12;
@@ -736,7 +736,8 @@ namespace PKHeX.Core
         public void SetRecord(int recordID, int value)
         {
             int ofs = GetRecordOffset(recordID);
-            int max = GetRecordMax(recordID);
+            var maxes = USUM ? RecordMaxType_USUM: RecordMaxType_SM;
+            int max = GetRecordMax(recordID, maxes);
             if (value > max)
                 value = max;
             if (recordID < 100)
@@ -753,9 +754,9 @@ namespace PKHeX.Core
             return -1;
         }
 
-        public static int GetRecordMax(int recordID) => recordID < 200 ? RecordMax[RecordMaxType[recordID]] : 0;
+        public static int GetRecordMax(int recordID, int[] maxes = null) => recordID < 200 ? RecordMax[(maxes ?? RecordMaxType_USUM)[recordID]] : 0;
         private static readonly int[] RecordMax = {999999999, 9999999, 999999, 99999, 65535, 9999, 999};
-        private static readonly int[] RecordMaxType =
+        private static readonly int[] RecordMaxType_SM =
         {
             0, 0, 0, 0, 0, 0, 2, 2, 2, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -778,6 +779,30 @@ namespace PKHeX.Core
             5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
             5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
             5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+        };
+        private static readonly int[] RecordMaxType_USUM =
+        {
+            0, 0, 0, 0, 0, 0, 2, 2, 2, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 2, 2, 2, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 2, 2, 2, 0, 0, 0, 2, 2, 0,
+            0, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 1, 2, 2, 2,
+            0, 0, 0, 0, 0, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 6, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 4, 4, 4, 5, 5, 4, 5, 5
         };
 
         public ushort PokeFinderCameraVersion
@@ -1022,7 +1047,9 @@ namespace PKHeX.Core
                     int fc = Personal[pkm.Species].FormeCount;
                     if (fc > 1) // actually has forms
                     {
-                        int f = SaveUtil.GetDexFormIndexSM(pkm.Species, fc, MaxSpeciesID - 1);
+                        int f = USUM 
+                            ? SaveUtil.GetDexFormIndexUSUM(pkm.Species, fc, MaxSpeciesID - 1)
+                            : SaveUtil.GetDexFormIndexSM(pkm.Species, fc, MaxSpeciesID - 1);
                         if (f >= 0) // bit index valid
                             bitIndex = f + form;
                     }
@@ -1060,7 +1087,7 @@ namespace PKHeX.Core
 
             ((PK7)pkm).FormDuration = duration;
         }
-        private static bool SanitizeFormsToIterate(int species, out int formStart, out int formEnd, int formIn)
+        private bool SanitizeFormsToIterate(int species, out int formStart, out int formEnd, int formIn)
         {
             // 004AA370 in Moon
             // Simplified in terms of usage -- only overrides to give all the battle forms for a pkm
@@ -1069,14 +1096,26 @@ namespace PKHeX.Core
             switch (species)
             {
                 case 351: // Castform
+                case 778 when USUM: // Mimikyu
                     formStart = 0;
                     formEnd = 3;
                     return true;
+
+                case 020: // Raticate
+                case 105 when USUM: // Marowak
+                    formStart = 0;
+                    formEnd = 2;
+                    return true;
+
                 case 421: // Cherrim
                 case 555: // Darmanitan
                 case 648: // Meloetta
                 case 746: // Wishiwashi
                 case 778: // Mimikyu
+                case 743 when USUM: // Ribombee
+                case 744 when USUM: // Rockruff
+                case 752 when USUM: // Araquanid
+                case 777 when USUM: // Togedemaru
                     formStart = 0;
                     formEnd = 1;
                     return true;
