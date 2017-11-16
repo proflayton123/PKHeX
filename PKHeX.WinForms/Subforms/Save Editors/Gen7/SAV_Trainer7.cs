@@ -39,8 +39,14 @@ namespace PKHeX.WinForms
             CB_Stats.SelectedIndex = RecordList.First().Key;
             CB_Fashion.SelectedIndex = 1;
 
+            if (SAV.USUM)
+                LoadUltraData();
+            else
+                TC_Editor.TabPages.Remove(Tab_Ultra);
+
             Loading = false;
         }
+
         private readonly ToolTip Tip1 = new ToolTip(), Tip2 = new ToolTip(), Tip3 = new ToolTip();
         private readonly bool Loading;
         private bool MapUpdated;
@@ -48,6 +54,8 @@ namespace PKHeX.WinForms
 
         private static readonly string[] TrainerStampTitle = { "01:Official Pokemon Trainer", "02:Melemele Trial Completion", "03:Akala Trial Completion", "04:Ula'ula Trial Completion", "05:Poni Trial Completion", "06:Island Challenge Completion", "07:Melemele Pokedex Completion", "08:Akala Pokedex Completion", "09:Ula'ula Pokedex Completion", "10:Poni Pokedex Completion", "11:Alola Pokedex Completion", "12:50 Consecutive Single Battle Wins", "13:50 Consecutive Double Battle Wins", "14:50 Consecutive Multi Battle Wins", "15:Poke Finder Pro" };
         private static readonly string[] BattleStyles = { "Normal", "Elegant", "Girlish", "Reverent", "Smug", "Left-handed", "Passionate", "Idol" };
+        private int[] FlyDestFlagOfs, MapUnmaskFlagOfs;
+        private int skipFlag => SAV.USUM ? 4160 : 3200; // FlagMax - 768
 
         private void GetComboBoxes()
         {
@@ -127,7 +135,7 @@ namespace PKHeX.WinForms
 
             CB_Game.SelectedIndex = SAV.Game - 30;
             CB_Gender.SelectedIndex = SAV.Gender;
-            
+
             // Display Data
             TB_OTName.Text = OT_NAME;
 
@@ -135,7 +143,7 @@ namespace PKHeX.WinForms
             MT_SID.Text = SAV.SID.ToString("00000");
             MT_G7TID.Text = SAV.TrainerID7.ToString("000000");
             MT_Money.Text = SAV.Money.ToString();
-            
+
             CB_Country.SelectedValue = SAV.Country;
             CB_Region.SelectedValue = SAV.SubRegion;
             CB_3DSReg.SelectedValue = SAV.ConsoleRegion;
@@ -147,7 +155,7 @@ namespace PKHeX.WinForms
                 CB_AlolaTime.Enabled = false; // alola time doesn't exist yet
             else
                 CB_AlolaTime.SelectedValue = (int)time;
-            
+
             NUD_M.Value = SAV.M;
             // Sanity Check Map Coordinates
             try
@@ -163,7 +171,7 @@ namespace PKHeX.WinForms
             MT_Hours.Text = SAV.PlayedHours.ToString();
             MT_Minutes.Text = SAV.PlayedMinutes.ToString();
             MT_Seconds.Text = SAV.PlayedSeconds.ToString();
-            
+
             if (SAV.LastSavedDate.HasValue)
             {
                 CAL_LastSavedDate.Value = SAV.LastSavedDate.Value;
@@ -173,7 +181,7 @@ namespace PKHeX.WinForms
             {
                 L_LastSaved.Visible = CAL_LastSavedDate.Visible = CAL_LastSavedTime.Visible = false;
             }
-                
+
             CAL_AdventureStartDate.Value = new DateTime(2000, 1, 1).AddSeconds(SAV.SecondsToStart);
             CAL_AdventureStartTime.Value = new DateTime(2000, 1, 1).AddSeconds(SAV.SecondsToStart % 86400);
             CAL_HoFDate.Value = new DateTime(2000, 1, 1).AddSeconds(SAV.SecondsToFame);
@@ -214,15 +222,11 @@ namespace PKHeX.WinForms
             if (SAV.BallThrowType >= 0 && SAV.BallThrowType < CB_BallThrowType.Items.Count)
                 CB_BallThrowType.SelectedIndex = SAV.BallThrowType;
 
-            LB_BallThrowTypeUnlocked.SetSelected(0, true);
-            LB_BallThrowTypeUnlocked.SetSelected(1, true);
-            for (int i = 2; i < LB_BallThrowTypeUnlocked.Items.Count; i++)
-                LB_BallThrowTypeUnlocked.SetSelected(i, SAV.GetEventFlag(292 + i));
-
-            LB_BallThrowTypeLearned.SetSelected(0, true);
-            for (int i = 1; i < LB_BallThrowTypeLearned.Items.Count; i++)
-                LB_BallThrowTypeLearned.SetSelected(i, SAV.GetEventFlag(3479 + i));
-            CB_BallThrowTypeListMode.SelectedIndex = 0;
+            if (SAV.SM)
+                LoadThrowTypeLists();
+            else
+                CB_BallThrowTypeListMode.Visible = LB_BallThrowTypeLearned.Visible =
+                    LB_BallThrowTypeUnlocked.Visible = false;
 
             uint stampBits = SAV.Stamps;
             for (int i = 0; i < LB_Stamps.Items.Count; i++)
@@ -234,8 +238,117 @@ namespace PKHeX.WinForms
 
             CHK_UnlockMega.Checked = SAV.MegaUnlocked;
             CHK_UnlockZMove.Checked = SAV.ZMoveUnlocked;
+
+            LoadMapFlyToData();
+        }
+
+        private void LoadThrowTypeLists()
+        {
+            const int unlockStart = 292;
+            const int learnedStart = 3479;
+            LB_BallThrowTypeUnlocked.SetSelected(0, true);
+            LB_BallThrowTypeUnlocked.SetSelected(1, true);
+            for (int i = 2; i < BattleStyles.Length; i++)
+                LB_BallThrowTypeUnlocked.SetSelected(i, SAV.GetEventFlag(unlockStart + i));
+
+            LB_BallThrowTypeLearned.SetSelected(0, true);
+            for (int i = 1; i < BattleStyles.Length; i++)
+                LB_BallThrowTypeLearned.SetSelected(i, SAV.GetEventFlag(learnedStart + i));
+
+            CB_BallThrowTypeListMode.SelectedIndex = 0;
+        }
+
+        private void LoadMapFlyToData()
+        {
+            List<ComboItem> metLocationList = GameInfo.GetLocationList(GameVersion.US, 7, false);
+            int[] FlyDestNameIndex = {
+                -1,24,34,8,20,38,12,46,40,30,//Melemele
+                70,68,78,86,74,104,82,58,90,72,76,92,62,//Akala
+                132,136,138,114,118,144,130,154,140,//Ula'ula
+                172,184,180,174,176,156,186,//Poni
+                188,-1,-1,
+                198,202,110,204,//Beach
+            };
+            if (SAV.Version == GameVersion.UM || SAV.Version == GameVersion.MN)
+            {
+                FlyDestNameIndex[28] = 142;
+                FlyDestNameIndex[36] = 178;
+            }
+            FlyDestFlagOfs = new[] {
+                44,43,45,40,41,49,42,47,46,48,
+                50,54,39,57,51,55,59,52,58,53,61,60,56,
+                62,66,67,64,65,273,270,37,38,
+                69,74,72,71,276,73,70,
+                75,332,334,
+                331,333,335,336,
+            };
+            string[] FlyDestAltName = { "My House", "Photo Club(Hau'oli)", "Photo Club(Konikoni)", };
+            CLB_FlyDest.Items.Clear();
+            for (int i = 0, u = 0, m = FlyDestNameIndex.Length - (SAV.USUM ? 0 : 6); i < m; i++)
+            {
+                CLB_FlyDest.Items.Add(
+                    FlyDestNameIndex[i] < 0
+                    ? FlyDestAltName[u++]
+                    : metLocationList.First(v => v.Value == FlyDestNameIndex[i]).Text
+                    , SAV.GetEventFlag(skipFlag + FlyDestFlagOfs[i])
+                );
+            }
+            int[] MapUnmaskNameIndex = {
+                6,8,24,-1,18,-1,20,22,12,10,14,
+                70,50,68,52,74,54,56,58,60,72,62,64,
+                132,192,106,108,122,112,114,126,116,118,120,154,
+                172,158,160,162,164,166,168,170,
+                188,
+                198,202,110,204,
+            };
+            MapUnmaskFlagOfs = new[] {
+                5,76,82,91,79,84,80,81,77,78,83,
+                19,10,18,11,21,12,13,14,15,20,16,17,
+                33,34,30,31,98,92,93,94,95,96,97,141,
+                173,144,145,146,147,148,149,172,
+                181,
+                409,297,32,296,
+            };
+            string[] MapUnmaskAltName = { "Melemele Sea(East)", "Melemele Sea(West)", };
+            CLB_MapUnmask.Items.Clear();
+            for (int i = 0, u = 0, m = MapUnmaskNameIndex.Length - (SAV.USUM ? 0 : 4); i < m; i++)
+            {
+                CLB_MapUnmask.Items.Add(
+                    MapUnmaskNameIndex[i] < 0
+                    ? MapUnmaskAltName[u++]
+                    : metLocationList.First(v => v.Value == MapUnmaskNameIndex[i]).Text
+                    , SAV.GetEventFlag(skipFlag + MapUnmaskFlagOfs[i])
+                );
+            }
+        }
+        private void LoadUltraData()
+        {
+            NUD_Surf0.Value = SAV.GetSurfScore(0);
+            NUD_Surf1.Value = SAV.GetSurfScore(1);
+            NUD_Surf2.Value = SAV.GetSurfScore(2);
+            NUD_Surf3.Value = SAV.GetSurfScore(3);
         }
         private void Save()
+        {
+            SaveTrainerInfo();
+            SavePokeFinder();
+            SaveBattleTree();
+            SaveTrainerAppearance();
+            SAV.DaysFromRefreshed = (byte)NUD_DaysFromRefreshed.Value;
+            if (SAV.SM)
+                SaveThrowType();
+
+            SAV.FestivalPlazaName = TB_PlazaName.Text;
+
+            // Vivillon
+            if (CB_Vivillon.SelectedIndex >= 0) SAV.Vivillon = CB_Vivillon.SelectedIndex;
+
+            SaveFlags();
+
+            if (SAV.USUM)
+                SaveUltraData();
+        }
+        private void SaveTrainerInfo()
         {
             SAV.Game = (byte)(CB_Game.SelectedIndex + 30);
             SAV.Gender = (byte)CB_Gender.SelectedIndex;
@@ -282,16 +395,18 @@ namespace PKHeX.WinForms
 
             SAV.BP = (uint)NUD_BP.Value;
             SAV.FestaCoins = (uint)NUD_FC.Value;
-
-            // Poké Finder
+        }
+        private void SavePokeFinder()
+        {
             SAV.PokeFinderSnapCount = (uint)NUD_SnapCount.Value;
             SAV.PokeFinderThumbsTotalValue = (uint)NUD_ThumbsTotal.Value;
             SAV.PokeFinderThumbsHighValue = (uint)NUD_ThumbsRecord.Value;
 
             SAV.PokeFinderCameraVersion = (ushort)CB_CameraVersion.SelectedIndex;
             SAV.PokeFinderGyroFlag = CHK_Gyro.Checked;
-
-            // Battle Tree
+        }
+        private void SaveBattleTree()
+        {
             SAV.SetTreeStreak((int)NUD_RCStreak0.Value, 0, super:false, max:false);
             SAV.SetTreeStreak((int)NUD_RCStreak1.Value, 1, super:false, max:false);
             SAV.SetTreeStreak((int)NUD_RCStreak2.Value, 2, super:false, max:false);
@@ -305,7 +420,9 @@ namespace PKHeX.WinForms
             SAV.SetTreeStreak((int)NUD_SMStreak0.Value, 0, super:true, max:true);
             SAV.SetTreeStreak((int)NUD_SMStreak1.Value, 1, super:true, max:true);
             SAV.SetTreeStreak((int)NUD_SMStreak2.Value, 2, super:true, max:true);
-
+        }
+        private void SaveTrainerAppearance()
+        {
             // Skin changed && (gender matches || override)
             int gender = CB_Gender.SelectedIndex & 1;
             int skin = CB_SkinColor.SelectedIndex & 1;
@@ -315,22 +432,21 @@ namespace PKHeX.WinForms
             if (SAV.DressUpSkinColor != CB_SkinColor.SelectedIndex && 
                 (SAV.Gender == skin || DialogResult.Yes == WinFormsUtil.Prompt(MessageBoxButtons.YesNo, $"Gender-Skin mismatch:{Environment.NewLine}Gender: {gStr}, Skin: {sStr}", "Save selected Skin Color?")))
                     SAV.DressUpSkinColor = CB_SkinColor.SelectedIndex;
-
-            SAV.FestivalPlazaName = TB_PlazaName.Text;
-
-            // Vivillon
-            if (CB_Vivillon.SelectedIndex >= 0) SAV.Vivillon = CB_Vivillon.SelectedIndex;
-            
-            SAV.DaysFromRefreshed = (byte)NUD_DaysFromRefreshed.Value;
+        }
+        private void SaveThrowType()
+        {
             if (CB_BallThrowType.SelectedIndex >= 0)
                 SAV.BallThrowType = CB_BallThrowType.SelectedIndex;
 
-            for (int i = 2; i < LB_BallThrowTypeUnlocked.Items.Count; i++)
-                SAV.SetEventFlag(292 + i, LB_BallThrowTypeUnlocked.GetSelected(i));
-
-            for (int i = 1; i < LB_BallThrowTypeLearned.Items.Count; i++)
-                SAV.SetEventFlag(3479 + i, LB_BallThrowTypeLearned.GetSelected(i));
-
+            const int unlockStart = 292;
+            const int learnedStart = 3479;
+            for (int i = 2; i < BattleStyles.Length; i++)
+                SAV.SetEventFlag(unlockStart + i, LB_BallThrowTypeUnlocked.GetSelected(i));
+            for (int i = 1; i < BattleStyles.Length; i++)
+                SAV.SetEventFlag(learnedStart + i, LB_BallThrowTypeLearned.GetSelected(i));
+        }
+        private void SaveFlags()
+        {
             SAV.Stamps = GetBits(LB_Stamps);
 
             SAV.SetEventFlag(333, CHK_UnlockSuperSingles.Checked);
@@ -339,7 +455,20 @@ namespace PKHeX.WinForms
 
             SAV.MegaUnlocked = CHK_UnlockMega.Checked;
             SAV.ZMoveUnlocked = CHK_UnlockZMove.Checked;
+
+            for (int i = 0; i < CLB_FlyDest.Items.Count; i++)
+                SAV.SetEventFlag(skipFlag + FlyDestFlagOfs[i], CLB_FlyDest.GetItemChecked(i));
+            for (int i = 0; i < CLB_MapUnmask.Items.Count; i++)
+                SAV.SetEventFlag(skipFlag + MapUnmaskFlagOfs[i], CLB_MapUnmask.GetItemChecked(i));
         }
+        private void SaveUltraData()
+        {
+            SAV.SetSurfScore(0, (int)NUD_Surf0.Value);
+            SAV.SetSurfScore(1, (int)NUD_Surf1.Value);
+            SAV.SetSurfScore(2, (int)NUD_Surf2.Value);
+            SAV.SetSurfScore(3, (int)NUD_Surf3.Value);
+        }
+
         private static uint GetBits(ListBox listbox)
         {
             uint bits = 0;
@@ -407,11 +536,6 @@ namespace PKHeX.WinForms
         }
         private void B_Fashion_Click(object sender, EventArgs e)
         {
-            if (SAV.USUM)
-            {
-                WinFormsUtil.Alert("Temporarily disabled, needs research for permissible values.");
-                return;
-            }
             var prompt = WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Modifying Fashion Items will clear existing data", "Continue?");
             if (DialogResult.Yes != prompt)
                 return;
@@ -425,33 +549,29 @@ namespace PKHeX.WinForms
             switch (CB_Fashion.SelectedIndex)
             {
                 case 0: // Base Fashion
-                    if (SAV.Gender == 0) // Male
-                    {
-                        SAV.Data[0x42000] = 3;
-                        SAV.Data[0x420FB] = 3;
-                        SAV.Data[0x42124] = 3;
-                        SAV.Data[0x4228F] = 3;
-                        SAV.Data[0x423B4] = 3;
-                        SAV.Data[0x42452] = 3;
-                        SAV.Data[0x42517] = 3;
-                    }
-                    else // Female
-                    {
-                        SAV.Data[0x42000] = 3;
-                        SAV.Data[0x42100] = 3;
-                        SAV.Data[0x42223] = 3;
-                        SAV.Data[0x42288] = 3;
-                        SAV.Data[0x423B4] = 3;
-                        SAV.Data[0x42452] = 3;
-                        SAV.Data[0x42517] = 3;
-                    }
+                {
+                    var list = SAV.USUM
+                        ? (SAV.Gender == 0
+                            ? new[] {0x03A, 0x109, 0x1DA, 0x305, 0x3D9, 0x4B1, 0x584}   // M
+                            : new[] {0x05E, 0x208, 0x264, 0x395, 0x3B4, 0x4F9, 0x5A8})  // F
+                        : (SAV.Gender == 0
+                            ? new[] {0x000, 0x0FB, 0x124, 0x28F, 0x3B4, 0x452, 0x517}   // M
+                            : new[] {0x000, 0x100, 0x223, 0x288, 0x3B4, 0x452, 0x517}); // F
+
+                    foreach (var ofs in list)
+                        SAV.Data[SAV.Fashion + ofs] = 3;
                     break;
+                }
                 case 1: // Full Legal
-                    byte[] data1 = SAV.Gender == 0 ? Properties.Resources.fashion_m_sm : Properties.Resources.fashion_f_sm;
+                    byte[] data1 = SAV.USUM
+                        ? SAV.Gender == 0 ? Properties.Resources.fashion_m_uu : Properties.Resources.fashion_f_uu
+                        : SAV.Gender == 0 ? Properties.Resources.fashion_m_sm : Properties.Resources.fashion_f_sm;
                     data1.CopyTo(SAV.Data, SAV.Fashion);
                     break;
                 case 2: // Everything
-                    byte[] data2 = SAV.Gender == 0 ? Properties.Resources.fashion_m_sm_illegal : Properties.Resources.fashion_f_sm_illegal;
+                    byte[] data2 = SAV.USUM
+                        ? SAV.Gender == 0 ? Properties.Resources.fashion_m_uu_illegal : Properties.Resources.fashion_f_uu_illegal
+                        : SAV.Gender == 0 ? Properties.Resources.fashion_m_sm_illegal : Properties.Resources.fashion_f_sm_illegal;
                     data2.CopyTo(SAV.Data, SAV.Fashion);
                     break;
                 default:
@@ -537,6 +657,16 @@ namespace PKHeX.WinForms
                     LB_BallThrowTypeUnlocked.SetSelected(i, true);
             }
         }
+        private void B_AllFlyDest_Click(object sender, EventArgs e)
+        {
+            for (int i = 0; i < CLB_FlyDest.Items.Count; i++)
+                CLB_FlyDest.SetItemChecked(i, true);
+        }
+        private void B_AllMapUnmask_Click(object sender, EventArgs e)
+        {
+            for (int i = 0; i < CLB_MapUnmask.Items.Count; i++)
+                CLB_MapUnmask.SetItemChecked(i, true);
+        }
 
         private void B_GenTID_Click(object sender, EventArgs e)
         {
@@ -608,6 +738,9 @@ namespace PKHeX.WinForms
             {067, "Berry Piles (not full) Collected"},
             {068, "Berry Piles (full) Collected"},
             {069, "Items Reeled In"},
+            // USUM
+            {070, "Roto Lotos"},
+            {073, "Mantine Surf BP Earned"},
 
             {100, "Champion Title Defense"},
             {104, "Moves used with No Effect"},
@@ -659,6 +792,7 @@ namespace PKHeX.WinForms
             {157, "Sand Cloud Encounters"},
             {158, "Outfit Changes"},
             {159, "Battle Royal Dome Wins"},
+            {160, "Pelago Treasure Hunts"},
             {161, "Pelago Training Sessions"},
             {162, "Pelago Hot Spring Sessions"},
             {166, "Island Scans"},
@@ -683,6 +817,13 @@ namespace PKHeX.WinForms
             {185, "Try your luck!"},
             {186, "186 - Global Mission"},
             {187, "Catch a lot of Pokémon!"},
+
+            // USUM
+            {189, "Mantine Surf Plays"},
+            {190, "Photo Club Photos saved"},
+            {195, "Photo Club Sticker usage"},
+            {196, "Photo Club Photo Shoots"},
+            {198, "Highest Mantine Surf BP Earned"},
         };
     }
 }
