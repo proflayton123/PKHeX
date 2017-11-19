@@ -624,6 +624,14 @@ namespace PKHeX.Core
             int species = pkm.Species;
             int form = pkm.AltForm;
 
+            // Edge Case Handling
+            switch (species)
+            {
+                case 744 when form == 1:
+                case 745 when form == 2:
+                    yield break;
+            }
+
             if (AlolanVariantEvolutions12.Contains(species)) // match form if same species, else form 0.
                 slotdata = encounterSlots.Where(slot => species == slot.Species ? slot.Form == form : slot.Form == 0);
             else if (ShouldMatchSlotForm()) // match slot form
@@ -1218,7 +1226,7 @@ namespace PKHeX.Core
             {
                 if (wc.SID != pkm.SID) return false;
                 if (wc.TID != pkm.TID) return false;
-                if (wc.OT != pkm.OT_Name) return false;
+                if (wc.OT_Name != pkm.OT_Name) return false;
                 if (wc.OTGender < 3 && wc.OTGender != pkm.OT_Gender) return false;
                 if (wc.PID != 0 && pkm.PID != wc.PID) return false;
                 if (wc.PIDType == 0 && pkm.IsShiny) return false;
@@ -1259,7 +1267,7 @@ namespace PKHeX.Core
             {
                 if (wc.CardID != pkm.SID) return false;
                 if (wc.TID != pkm.TID) return false;
-                if (wc.OT != pkm.OT_Name) return false;
+                if (wc.OT_Name != pkm.OT_Name) return false;
                 if (wc.OTGender != pkm.OT_Gender) return false;
                 if (wc.PIDType == 0 && pkm.PID != wc.PID) return false;
                 if (wc.PIDType == 2 && !pkm.IsShiny) return false;
@@ -1308,7 +1316,7 @@ namespace PKHeX.Core
                     if (wc.TID != pkm.TID) return false;
                     if (wc.OTGender != pkm.OT_Gender) return false;
                 }
-                if (!string.IsNullOrEmpty(wc.OT) && wc.OT != pkm.OT_Name) return false;
+                if (!string.IsNullOrEmpty(wc.OT_Name) && wc.OT_Name != pkm.OT_Name) return false;
                 if (wc.OriginGame != 0 && wc.OriginGame != pkm.Version) return false;
                 if (wc.EncryptionConstant != 0 && wc.EncryptionConstant != pkm.EncryptionConstant) return false;
                 if (wc.Language != 0 && wc.Language != pkm.Language) return false;
@@ -1351,6 +1359,17 @@ namespace PKHeX.Core
 
             if (wc.PIDType == 2 && !pkm.IsShiny) return false;
             if (wc.PIDType == 3 && pkm.IsShiny) return false;
+
+            if (wc.CardID == 1624)
+            {
+                if (pkm.Species == 745 && pkm.AltForm != 2)
+                    return false;
+                if (pkm.Version == (int)GameVersion.US)
+                    return wc.Move3 == 424; // Fire Fang
+                if (pkm.Version == (int)GameVersion.UM)
+                    return wc.Move3 == 422; // Thunder Fang
+                return false;
+            }
 
             return true;
         }

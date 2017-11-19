@@ -158,7 +158,7 @@ namespace PKHeX.Core
         }
         public static void RefreshMGDB(string localDbPath)
         {
-            var g4 = GetPCDDB(Util.GetBinaryResource("pcd.pkl"));
+            var g4 = GetPCDDB(Util.GetBinaryResource("wc4.pkl"));
             var g5 = GetPGFDB(Util.GetBinaryResource("pgf.pkl"));
             var g6 = GetWC6DB(Util.GetBinaryResource("wc6.pkl"), Util.GetBinaryResource("wc6full.pkl"));
             var g7 = GetWC7DB(Util.GetBinaryResource("wc7.pkl"), Util.GetBinaryResource("wc7full.pkl"));
@@ -372,6 +372,8 @@ namespace PKHeX.Core
                         case GameVersion.MN:
                         case GameVersion.SM:
                             {
+                                if (species > MaxSpeciesID_7)
+                                    break;
                                 int index = PersonalTable.SM.GetFormeIndex(species, form);
                                 r.AddRange(LevelUpSM[index].GetMoves(lvl));
                                 if (ver == GameVersion.Any) // Fall Through
@@ -550,6 +552,8 @@ namespace PKHeX.Core
                 case GameVersion.SN:
                 case GameVersion.MN:
                 case GameVersion.SM:
+                    if (species > MaxSpeciesID_7)
+                        break;
                     if (pkm.InhabitedGeneration(7))
                     {
                         int index = PersonalTable.SM.GetFormeIndex(species, pkm.AltForm);
@@ -1206,8 +1210,7 @@ namespace PKHeX.Core
 
             // Check also if the current encounter include the evolve move as an special move
             // That means the pokemon have the move from the encounter level
-            int[] SpecialMoves = (info.EncounterMatch as IMoveset)?.Moves ?? new int[0];
-            if (SpecialMoves.Any(m => moves.Contains(m)))
+            if (info.EncounterMatch is IMoveset s && s.Moves != null && s.Moves.Any(m => moves.Contains(m)))
                 LearnLevel = Math.Min(LearnLevel, info.EncounterMatch.LevelMin);
 
             // If the encounter is a player hatched egg check if the move could be an egg move or inherited level up move
@@ -1392,7 +1395,7 @@ namespace PKHeX.Core
             if (pkm.Format == 3 && pkm.WasEgg)
                 // Only for gen 3 pokemon in format 3, after transfer to gen 4 it should return transfer level
                 return 5;
-            if (pkm.Format == 4 && pkm.GenNumber == 4 && pkm.WasEgg)
+            if (pkm.Format == 4 && pkm.Gen4 && pkm.WasEgg)
                 // Only for gen 4 pokemon in format 4, after transfer to gen 5 it should return transfer level
                 return 1;
             return pkm.HasOriginalMetLocation ? pkm.Met_Level : GetMaxLevelGeneration(pkm);
@@ -1604,6 +1607,8 @@ namespace PKHeX.Core
                     return getMoves(LevelUpAO, PersonalTable.AO);
 
                 case GameVersion.SN: case GameVersion.MN:
+                    if (species > MaxSpeciesID_7)
+                        break;
                     return getMoves(LevelUpSM, PersonalTable.SM);
                 case GameVersion.US: case GameVersion.UM:
                     return getMoves(LevelUpUSUM, PersonalTable.USUM);
@@ -1935,6 +1940,8 @@ namespace PKHeX.Core
                         case GameVersion.Any:
                         case GameVersion.SN: case GameVersion.MN: case GameVersion.SM:
                         {
+                            if (species > MaxSpeciesID_7)
+                                break;
                             int index = PersonalTable.SM.GetFormeIndex(species, form);
                             if (MoveReminder)
                                 lvl = 100; // Move reminder can teach any level in movepool now!
