@@ -256,6 +256,12 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
+    <Compile Include="Subforms\Save Editors\Gen7\SAV_FestivalPlaza.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Subforms\Save Editors\Gen7\SAV_FestivalPlaza.Designer.cs">
+      <DependentUpon>SAV_FestivalPlaza.cs</DependentUpon>
+    </Compile>
     <Compile Include="Settings.cs" />
     <Compile Include="Subforms\ReportGrid.cs">
       <SubType>Form</SubType>
@@ -585,6 +591,9 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <SubType>Designer</SubType>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Subforms\Save Editors\Gen7\SAV_FestivalPlaza.resx">
+      <DependentUpon>SAV_FestivalPlaza.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Subforms\ReportGrid.resx">
       <DependentUpon>ReportGrid.cs</DependentUpon>

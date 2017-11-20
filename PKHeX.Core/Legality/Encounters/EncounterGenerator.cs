@@ -510,7 +510,12 @@ namespace PKHeX.Core
         // EncounterSlot
         private static IEnumerable<EncounterSlot> GetRawEncounterSlots(PKM pkm, int lvl, GameVersion gameSource = GameVersion.Any)
         {
-            return GetEncounterAreas(pkm, gameSource).SelectMany(area => GetValidEncounterSlots(pkm, area, DexNav: pkm.AO, lvl: lvl, gameSource: gameSource));
+            int maxspeciesorigin = -1;
+            if (gameSource == GameVersion.RBY) maxspeciesorigin = MaxSpeciesID_1;
+            else if (GameVersion.GSC.Contains(gameSource)) maxspeciesorigin = MaxSpeciesID_2;
+
+            var vs = GetValidPreEvolutions(pkm, maxspeciesorigin: maxspeciesorigin);
+            return GetEncounterAreas(pkm, gameSource).SelectMany(area => GetValidEncounterSlots(pkm, area, vs, DexNav: pkm.AO, lvl: lvl));
         }
         private static IEnumerable<EncounterSlot> GetValidWildEncounters(PKM pkm, GameVersion gameSource = GameVersion.Any)
         {
@@ -567,46 +572,59 @@ namespace PKHeX.Core
                 };
             }
         }
-        private static IEnumerable<EncounterSlot> GetValidEncounterSlots(PKM pkm, EncounterArea loc, bool DexNav, int lvl = -1, bool ignoreLevel = false, GameVersion gameSource = GameVersion.Any)
+        private static IEnumerable<EncounterSlot> GetValidEncounterSlots(PKM pkm, EncounterArea loc, IEnumerable<DexLevel> vs, bool DexNav = false, int lvl = -1, bool ignoreLevel = false)
         {
             if (lvl < 0)
                 lvl = GetMinLevelEncounter(pkm);
             if (lvl <= 0)
                 return Enumerable.Empty<EncounterSlot>();
 
-            var maxspeciesorigin = -1;
-            if (gameSource == GameVersion.RBY) maxspeciesorigin = MaxSpeciesID_1;
-            else if (GameVersion.GSC.Contains(gameSource)) maxspeciesorigin = MaxSpeciesID_2;
-
-            // Get Valid levels
-            var vs = GetValidPreEvolutions(pkm, maxspeciesorigin: maxspeciesorigin, lvl: ignoreLevel ? 100 : -1, skipChecks: ignoreLevel);
-            if (!FilterGBSlotsCatchRate(pkm, ref vs, out GameVersion Gen1Version, out bool RBDragonair))
-                return Enumerable.Empty<EncounterSlot>();
-
             int gen = pkm.GenNumber;
-            int fluteBoost = gen < 3 ? 0 : 4;
+            if (gen < 3)
+                return GetValidEncounterSlots12(pkm, loc, vs, lvl, ignoreLevel);
+
+            const int fluteBoost = 4;
             const int dexnavBoost = 30;
             int df = DexNav ? fluteBoost : 0;
             int dn = DexNav ? fluteBoost + dexnavBoost : 0;
 
-            // Get slots where pokemon can exist with respect to the evolution chain
-            var slots = loc.Slots.Where(slot => vs.Any(evo => evo.Species == slot.Species && (ignoreLevel || evo.Level >= slot.LevelMin - df)));
-            // Get slots where pokemon can exist with respect to level constraints
-            var encounterSlots = GetSlotsFilterByLevel(pkm, lvl, ignoreLevel, slots, df, dn);
+            // Get Valid levels
+            var encounterSlots = GetValidEncounterSlotsByEvoLevel(pkm, loc.Slots, lvl, ignoreLevel, vs, df, dn);
+            if (encounterSlots.Count == 0)
+                return Enumerable.Empty<EncounterSlot>();
 
             // Return enumerable of slots pkm might have originated from
-            if (gen <= 2)
-                return GetFilteredSlots12(pkm, gen, Gen1Version, encounterSlots, RBDragonair).OrderBy(slot => slot.LevelMin); // prefer lowest levels
             if (gen <= 5)
                 return GetFilteredSlotsByForm(pkm, encounterSlots);
             if (DexNav && gen == 6)
                 return GetFilteredSlots6DexNav(pkm, lvl, encounterSlots, fluteBoost);
             return GetFilteredSlots67(pkm, encounterSlots);
         }
-        private static List<EncounterSlot> GetSlotsFilterByLevel(PKM pkm, int lvl, bool ignoreLevel, IEnumerable<EncounterSlot> slots, int df, int dn)
+        private static IEnumerable<EncounterSlot> GetValidEncounterSlots12(PKM pkm, EncounterArea loc, IEnumerable<DexLevel> vs, int lvl = -1, bool ignoreLevel = false)
         {
+            if (lvl < 0)
+                lvl = GetMinLevelEncounter(pkm);
+            if (lvl <= 0)
+                return Enumerable.Empty<EncounterSlot>();
+
+            var Gen1Version = GameVersion.RBY;
+            bool RBDragonair = false;
+            if (!ignoreLevel && !FilterGBSlotsCatchRate(pkm, ref vs, ref Gen1Version, ref RBDragonair))
+                return Enumerable.Empty<EncounterSlot>();
+
+            var encounterSlots = GetValidEncounterSlotsByEvoLevel(pkm, loc.Slots, lvl, ignoreLevel, vs);
+            if (encounterSlots.Count == 0)
+                return Enumerable.Empty<EncounterSlot>();
+            return GetFilteredSlots12(pkm, pkm.GenNumber, Gen1Version, encounterSlots, RBDragonair).OrderBy(slot => slot.LevelMin); // prefer lowest levels
+        }
+        private static List<EncounterSlot> GetValidEncounterSlotsByEvoLevel(PKM pkm, IEnumerable<EncounterSlot> slots, int lvl, bool ignoreLevel, IEnumerable<DexLevel> vs, int df = 0, int dn = 0)
+        {
+            // Get slots where pokemon can exist with respect to the evolution chain
             if (ignoreLevel)
-                return slots.ToList();
+                return slots.Where(slot => vs.Any(evo => evo.Species == slot.Species)).ToList();
+
+            slots = slots.Where(slot => vs.Any(evo => evo.Species == slot.Species && evo.Level >= slot.LevelMin - df));
+            // Get slots where pokemon can exist with respect to level constraints
             if (pkm.HasOriginalMetLocation)
                 return slots.Where(slot => slot.LevelMin - df <= lvl && lvl <= slot.LevelMax + (slot.Permissions.AllowDexNav ? dn : df)).ToList();
             // check for any less than current level
@@ -693,10 +711,8 @@ namespace PKHeX.Core
             return max;
         }
 
-        private static bool FilterGBSlotsCatchRate(PKM pkm, ref IEnumerable<DexLevel> vs, out GameVersion Gen1Version, out bool RBDragonair)
+        private static bool FilterGBSlotsCatchRate(PKM pkm, ref IEnumerable<DexLevel> vs, ref GameVersion Gen1Version, ref bool RBDragonair)
         {
-            RBDragonair = false;
-            Gen1Version = GameVersion.RBY;
             if (!(pkm is PK1 pk1) || !pkm.Gen1_NotTradeback)
                 return true;
 
@@ -766,12 +782,12 @@ namespace PKHeX.Core
                     return slots;
             }
         }
-        private static IEnumerable<EncounterArea> GetEncounterSlots(PKM pkm, int lvl = -1, GameVersion gameSource = GameVersion.Any)
+        private static IEnumerable<EncounterArea> GetEncounterSlots(PKM pkm, GameVersion gameSource = GameVersion.Any)
         {
             if (gameSource == GameVersion.Any)
                 gameSource = (GameVersion)pkm.Version;
 
-            return GetSlots(pkm, GetEncounterTable(pkm, gameSource), lvl);
+            return GetEncounterTable(pkm, gameSource);
         }
         private static IEnumerable<EncounterArea> GetEncounterAreas(PKM pkm, GameVersion gameSource = GameVersion.Any)
         {
@@ -781,18 +797,6 @@ namespace PKHeX.Core
             var slots = GetEncounterSlots(pkm, gameSource: gameSource);
             bool noMet = !pkm.HasOriginalMetLocation || pkm.Format == 2 && gameSource != GameVersion.C;
             return noMet ? slots : slots.Where(area => area.Location == pkm.Met_Location);
-        }
-        private static IEnumerable<EncounterArea> GetSlots(PKM pkm, IEnumerable<EncounterArea> tables, int lvl = -1)
-        {
-            IEnumerable<DexLevel> vs = GetValidPreEvolutions(pkm, lvl: lvl);
-            foreach (var loc in tables)
-            {
-                IEnumerable<EncounterSlot> slots = loc.Slots.Where(slot => vs.Any(evo => evo.Species == slot.Species));
-
-                EncounterSlot[] es = slots.ToArray();
-                if (es.Length > 0)
-                    yield return new EncounterArea { Location = loc.Location, Slots = es };
-            }
         }
 
         // EncounterLink
@@ -1438,8 +1442,9 @@ namespace PKHeX.Core
             if (!pkm.AO || !pkm.InhabitedGeneration(6))
                 return false;
 
+            var vs = GetValidPreEvolutions(pkm);
             IEnumerable<EncounterArea> locs = GetDexNavAreas(pkm);
-            var d_areas = locs.Select(loc => GetValidEncounterSlots(pkm, loc, DexNav: true));
+            var d_areas = locs.Select(loc => GetValidEncounterSlots(pkm, loc, vs, DexNav: true));
             return d_areas.Any(slots => slots.Any(slot => slot.Permissions.AllowDexNav && slot.Permissions.DexNav));
         }
         private static bool IsEncounterTypeMatch(IEncounterable e, int type)
@@ -1456,8 +1461,9 @@ namespace PKHeX.Core
         }
         internal static EncounterArea GetCaptureLocation(PKM pkm)
         {
-            return (from area in GetEncounterSlots(pkm, 100)
-                let slots = GetValidEncounterSlots(pkm, area, pkm.AO, ignoreLevel: true).ToArray()
+            var vs = GetValidPreEvolutions(pkm);
+            return (from area in GetEncounterSlots(pkm)
+                let slots = GetValidEncounterSlots(pkm, area, vs, DexNav: pkm.AO, ignoreLevel: true).ToArray()
                 where slots.Any()
                 select new EncounterArea
                 {
@@ -1515,7 +1521,7 @@ namespace PKHeX.Core
                 Ability = TransferSpeciesDefaultAbility_2.Contains(species) ? 1 : 4, // Hidden by default, else first
                 Shiny = species == 151 || species == 251 ? (bool?)false : null,
                 Fateful = species == 151 || species == 251,
-                Location = 30004, // todo
+                Location = 30017,
                 EggLocation = 0,
                 IV3 = true,
                 Level = pkmMetLevel,
