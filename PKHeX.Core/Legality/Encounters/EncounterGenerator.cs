@@ -91,7 +91,7 @@ namespace PKHeX.Core
             {
                 if (!info.PIDIV.Type.IsCompatible4(z, pkm))
                     deferredPIDIV.Add(z);
-                else if (!IsEncounterTypeMatch(z, pkm.EncounterType))
+                else if (pkm.Format <= 6 && !IsEncounterTypeMatch(z, pkm.EncounterType))
                     deferredEType.Add(z);
                 else
                     yield return z;
@@ -180,7 +180,7 @@ namespace PKHeX.Core
         }
         private static IEnumerable<GBEncounterData> GenerateFilteredEncounters(PKM pkm)
         {
-            bool crystal = pkm.Format == 2 && pkm.Met_Location != 0;
+            bool crystal = pkm.Format == 2 && pkm.Met_Location != 0 || pkm.Format >= 7 && pkm.OT_Gender == 1;
             var g1i = new PeekEnumerator<GBEncounterData>(get1().GetEnumerator());
             var g2i = new PeekEnumerator<GBEncounterData>(get2().GetEnumerator());
             var deferred = new List<GBEncounterData>();
@@ -207,7 +207,7 @@ namespace PKHeX.Core
             }
             IEnumerable<GBEncounterData> get2()
             {
-                if (!pkm.Gen1_NotTradeback && AllowGen2VCTransfer)
+                if (!pkm.Gen1_NotTradeback)
                     foreach (var z in GenerateRawEncounters12(pkm, crystal ? GameVersion.C : GameVersion.GSC))
                         yield return z;
             }
@@ -1494,7 +1494,7 @@ namespace PKHeX.Core
         {
             if (pkm.VC1)
                 return GetRBYStaticTransfer(pkm.Species, pkm.Met_Level);
-            if (pkm.VC2)
+            if (pkm.VC2 && (pkm.Version != (int)GameVersion.C || AllowGen2VCCrystal))
                 return GetGSStaticTransfer(pkm.Species, pkm.Met_Level);
             return new EncounterInvalid(pkm);
         }
@@ -1507,7 +1507,7 @@ namespace PKHeX.Core
                 Ability = TransferSpeciesDefaultAbility_1.Contains(species) ? 1 : 4, // Hidden by default, else first
                 Shiny = species == 151 ? (bool?)false : null,
                 Fateful = species == 151,
-                Location = 30013,
+                Location = Transfer1,
                 EggLocation = 0,
                 IV3 = true,
                 Level = pkmMetLevel,
@@ -1523,7 +1523,7 @@ namespace PKHeX.Core
                 Ability = TransferSpeciesDefaultAbility_2.Contains(species) ? 1 : 4, // Hidden by default, else first
                 Shiny = species == 151 || species == 251 ? (bool?)false : null,
                 Fateful = species == 151 || species == 251,
-                Location = 30017,
+                Location = Transfer2,
                 EggLocation = 0,
                 IV3 = true,
                 Level = pkmMetLevel,
